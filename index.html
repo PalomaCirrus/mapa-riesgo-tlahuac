@@ -3,49 +3,184 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Puntos de Riesgo</title>
+<title>Visor de Riesgo - Tláhuac</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
-#map { height: 100vh; }
+body { margin: 0; display: flex; font-family: Arial, sans-serif; }
+
+/* PANEL */
+#sidebar {
+    width: 300px;
+    background: #1f2937;
+    color: white;
+    padding: 15px;
+    overflow-y: auto;
+}
+
+#sidebar h2 {
+    margin-top: 0;
+    font-size: 18px;
+}
+
+/* MAPA */
+#map {
+    flex: 1;
+    height: 100vh;
+}
+
+/* LEYENDA */
+.legend {
+    background: white;
+    padding: 10px;
+    line-height: 18px;
+    border-radius: 5px;
+}
+
+.legend i {
+    width: 18px;
+    height: 18px;
+    float: left;
+    margin-right: 8px;
+}
+
+/* CHECKBOX */
+.filter {
+    margin-bottom: 10px;
+}
 </style>
 
 </head>
 
 <body>
+
+<!-- PANEL LATERAL -->
+
+<div id="sidebar">
+    <h2>Visor de Riesgo</h2>
+
+```
+<h3>Filtros</h3>
+
+<div class="filter">
+    <input type="checkbox" id="alto" checked> Alto
+</div>
+<div class="filter">
+    <input type="checkbox" id="medio" checked> Medio
+</div>
+<div class="filter">
+    <input type="checkbox" id="bajo" checked> Bajo
+</div>
+
+<hr>
+
+<p><b>Proyecto:</b><br>Zonas de riesgo en Tláhuac</p>
+<p><b>Fuente:</b><br>Análisis SIG multicriterio</p>
+```
+
+</div>
+
+<!-- MAPA -->
+
 <div id="map"></div>
 
 <script>
 
-// Crear mapa
+// MAPA BASE
 var map = L.map('map').setView([19.28, -99.12], 12);
 
-// ✅ NUEVO MAPA BASE (Carto - sin bloqueo)
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+var base = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap &copy; CARTO'
 }).addTo(map);
 
-// Popup
+// COLOR
+function getColor(riesgo) {
+    return riesgo === 'alto' ? '#d73027' :
+           riesgo === 'medio' ? '#fc8d59' :
+                               '#1a9850';
+}
+
+// CAPA GLOBAL
+var geojsonLayer;
+
+// FILTRO
+function filterData(feature) {
+    return document.getElementById(feature.properties.riesgo).checked;
+}
+
+// PUNTOS
+function pointToLayer(feature, latlng) {
+    return L.circleMarker(latlng, {
+        radius: 6,
+        fillColor: getColor(feature.properties.riesgo),
+        color: '#fff',
+        weight: 1,
+        fillOpacity: 0.8
+    });
+}
+
+// POPUP
 function onEachFeature(feature, layer) {
     layer.bindPopup(
-        "<b>ID:</b> " + feature.properties.sitio_id +
-        "<br>" + feature.properties.gmaps_btn
+        "<b>Sitio:</b> " + feature.properties.sitio_id +
+        "<br><b>Riesgo:</b> " + feature.properties.riesgo +
+        "<br><br><a href='" + feature.properties.Maps + "' target='_blank'>📍 Ver en Google Maps</a>"
     );
 }
 
-// Cargar datos
+// CARGAR DATOS
 fetch('puntos_riesgo.geojson')
 .then(res => res.json())
 .then(data => {
-    L.geoJSON(data, {
+    geojsonLayer = L.geoJSON(data, {
+        filter: filterData,
+        pointToLayer: pointToLayer,
         onEachFeature: onEachFeature
     }).addTo(map);
+
+    map.fitBounds(geojsonLayer.getBounds());
 });
+
+// ACTUALIZAR FILTROS
+function updateMap() {
+    map.removeLayer(geojsonLayer);
+
+    fetch('puntos_riesgo.geojson')
+    .then(res => res.json())
+    .then(data => {
+        geojsonLayer = L.geoJSON(data, {
+            filter: filterData,
+            pointToLayer: pointToLayer,
+            onEachFeature: onEachFeature
+        }).addTo(map);
+    });
+}
+
+// EVENTOS CHECKBOX
+document.getElementById('alto').onchange = updateMap;
+document.getElementById('medio').onchange = updateMap;
+document.getElementById('bajo').onchange = updateMap;
+
+// LEYENDA
+var legend = L.control({position: 'bottomright'});
+
+legend.onAdd = function () {
+    var div = L.DomUtil.create('div', 'legend');
+    div.innerHTML =
+        "<b>Riesgo</b><br>" +
+        "<i style='background:#d73027'></i> Alto<br>" +
+        "<i style='background:#fc8d59'></i> Medio<br>" +
+        "<i style='background:#1a9850'></i> Bajo";
+    return div;
+};
+
+legend.addTo(map);
 
 </script>
 
 </body>
 </html>
+
